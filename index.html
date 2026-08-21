@@ -141,6 +141,9 @@
       <button class="primary" onclick="generatePrompt()" style="margin-top:10px;">Giv mig prompt</button>
       <textarea class="report-box" id="prompt-text" readonly style="display:none; margin-top:10px; min-height:200px;"></textarea>
       <div id="prompt-copy-row" style="display:none; margin-top:8px;"><button class="secondary" id="copy-prompt-btn" onclick="copyBox('prompt-text','copy-prompt-btn')">Kopiér prompt</button></div>
+      <button class="secondary" onclick="generateArticleDirectly()" style="width:100%; margin-top:10px;">🤖 Skriv artiklen automatisk (Gemini)</button>
+      <textarea class="report-box" id="article-text" readonly style="display:none; margin-top:10px; min-height:260px;"></textarea>
+      <div id="article-copy-row" style="display:none; margin-top:8px;"><button class="secondary" id="copy-article-btn" onclick="copyBox('article-text','copy-article-btn')">Kopiér artikel</button></div>
     </div>
   </div>
 
@@ -238,7 +241,7 @@
 
 </main>
 
-<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v1.0.1</footer>
+<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v1.2</footer>
 
 <script>
 const TEAM_NAMES = ["Lalboination", "Sunred Ultras", "Stardom Hotspurs", "Fred FC", "Team EJ", "FC Tolstrup", "John Dennis", "LingLing"];
@@ -658,8 +661,8 @@ function renderFacts(d) {
   document.getElementById('facts-text').value = text;
 }
 
-function generatePrompt() {
-  if (!lastResults) return;
+function buildFullPrompt() {
+  if (!lastResults) return '';
   const d = lastResults;
   const anecdotes = document.getElementById('anecdotes-input').value.trim();
   const writerEntry = ROTATION.find(r => r.gw === d.gw);
@@ -705,9 +708,41 @@ function generatePrompt() {
     finalPrompt = guide + '\n' + extra + '\nDATA:\n' + dataBlock;
   }
 
+  return finalPrompt;
+}
+
+function generatePrompt() {
+  const finalPrompt = buildFullPrompt();
+  if (!finalPrompt) return;
   document.getElementById('prompt-text').value = finalPrompt;
   document.getElementById('prompt-text').style.display = 'block';
   document.getElementById('prompt-copy-row').style.display = 'block';
+}
+
+async function generateArticleDirectly() {
+  const finalPrompt = buildFullPrompt();
+  if (!finalPrompt) return;
+  const status = document.getElementById('fpl-fetch-status'); // reuse — visible near the top, fine for a short status ping too
+  const box = document.getElementById('article-text');
+  box.style.display = 'block';
+  box.value = 'Skriver artiklen — vent et par sekunder...';
+  document.getElementById('article-copy-row').style.display = 'none';
+  try {
+    const res = await fetch(SHEET_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({action: 'generateArticle', prompt: finalPrompt})
+    });
+    const data = await res.json();
+    if (data.error) {
+      box.value = `⚠️ ${data.error}`;
+      return;
+    }
+    box.value = data.text || '(intet svar modtaget)';
+    document.getElementById('article-copy-row').style.display = 'block';
+  } catch (err) {
+    box.value = '⚠️ Kunne ikke kontakte OpenAI — tjek forbindelsen.';
+  }
 }
 
 function copyBox(id, btnId) {
