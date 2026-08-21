@@ -241,7 +241,7 @@
 
 </main>
 
-<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v1.2</footer>
+<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v1.3</footer>
 
 <script>
 const TEAM_NAMES = ["Lalboination", "Sunred Ultras", "Stardom Hotspurs", "Fred FC", "Team EJ", "FC Tolstrup", "John Dennis", "LingLing"];
@@ -275,6 +275,7 @@ function renderGWOptions() {
 }
 
 let lastFplStandings = [];
+let hasInitializedGW = false;
 
 async function fetchFromFPL() {
   const status = document.getElementById('fpl-fetch-status');
@@ -449,14 +450,26 @@ function initInputs() {
 function initRotationTable() {
   const tbody = document.getElementById('rotation-body');
   const currentGW = parseInt(document.getElementById('gw-input').value, 10) || 1;
+  const loggedGWs = (currentState && currentState.loggedGWs) ? currentState.loggedGWs : [];
   tbody.innerHTML = ROTATION.map(r => {
     const isBonus = BONUS_ROUNDS.includes(r.gw);
     const isCurrent = r.gw === currentGW;
-    return `<tr class="${isCurrent ? 'rotation-current' : ''}"><td>GW${r.gw}${isBonus ? '<span class="bonus-badge">2X</span>' : ''}</td><td>${r.team}</td></tr>`;
+    const isLogged = loggedGWs.includes(r.gw);
+    const rowStyle = isLogged ? ' style="text-decoration: line-through; opacity: 0.5;"' : '';
+    return `<tr class="${isCurrent ? 'rotation-current' : ''}"${rowStyle}><td>GW${r.gw}${isBonus ? '<span class="bonus-badge">2X</span>' : ''}${isLogged ? ' ✅' : ''}</td><td>${r.team}</td></tr>`;
   }).join('');
 
   const writerEntry = ROTATION.find(r => r.gw === currentGW);
   document.getElementById('writer-name').textContent = writerEntry ? writerEntry.team : '?';
+}
+
+function selectNextUnloggedGW() {
+  const loggedGWs = (currentState && currentState.loggedGWs) ? currentState.loggedGWs : [];
+  const next = ROTATION.find(r => !loggedGWs.includes(r.gw));
+  if (next) {
+    document.getElementById('gw-input').value = next.gw;
+    initRotationTable();
+  }
 }
 
 async function loadState() {
@@ -469,6 +482,10 @@ async function loadState() {
     currentState = data;
     renderLiveBodekasse(data);
     renderGWOptions();
+    if (!hasInitializedGW) {
+      selectNextUnloggedGW();
+      hasInitializedGW = true;
+    }
     status.textContent = '✅ Forbundet til Google Sheet';
   } catch (err) {
     status.textContent = "⚠️ Kunne ikke hente data — tjek URL og deployment (Anyone-adgang)";
@@ -629,6 +646,7 @@ async function persistToSheet(d) {
       alert(data.error + '\n\nEn anden må have indtastet denne runde i mellemtiden. Beregningen ovenfor blev IKKE gemt.');
     } else {
       status.textContent = '✅ Gemt til Google Sheet';
+      selectNextUnloggedGW();
     }
   } catch (err) {
     status.textContent = '⚠️ Kunne ikke gemme — tjek forbindelsen';
