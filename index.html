@@ -240,7 +240,7 @@
 
 </main>
 
-<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v1.7</footer>
+<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v1.7.1</footer>
 
 <script>
 const TEAM_NAMES = ["Lalboination", "Sunred Ultras", "Stardom Hotspurs", "Fred FC", "Kokos", "FC Tolstrup", "John Dennis", "FC Lindcastle"];
@@ -503,11 +503,14 @@ function renderBonusOverview(data) {
   const best = data.records && data.records.best && data.records.best.team ? data.records.best : null;
   const worst = data.records && data.records.worst && data.records.worst.team ? data.records.worst : null;
   const teams = data.teams || [];
+  const hasRounds = data.loggedGWs && data.loggedGWs.length > 0;
 
   let mostHTML = '<div class="places">Ingen runder gemt endnu</div>';
   let fewestHTML = mostHTML;
-  let ffpHTML = mostHTML;
-  if (teams.length) {
+  let ffpHTML = hasRounds
+    ? '<div class="places">Ingen har taget ekstra transfers endnu</div>'
+    : '<div class="places">Ingen runder gemt endnu</div>';
+  if (teams.length && hasRounds) {
     const maxWins = Math.max(...teams.map(t=>t.wins));
     const minWins = Math.min(...teams.map(t=>t.wins));
     const mostTeams = teams.filter(t=>t.wins===maxWins).map(t=>t.name);
