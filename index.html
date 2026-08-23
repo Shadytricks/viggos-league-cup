@@ -248,7 +248,7 @@
 
 </main>
 
-<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v2.2</footer>
+<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v2.3</footer>
 
 <script>
 const TEAM_NAMES = ["Lalboination", "Sunred Ultras", "Stardom Hotspurs", "Fred FC", "Kokos", "FC Tolstrup", "John Dennis", "FC Lindcastle"];
@@ -527,9 +527,20 @@ function renderLiveBodekasse(data) {
   renderBonusOverview(data);
 }
 
+function formatRecordTeams(record) {
+  // Groups by team name so the same team hitting the tied record in multiple gameweeks shows once
+  // with all its gameweeks together, instead of repeating the team name per occurrence.
+  const byTeam = {};
+  record.teams.forEach((t, i) => {
+    if (!byTeam[t]) byTeam[t] = [];
+    byTeam[t].push(record.gws[i]);
+  });
+  return Object.keys(byTeam).map(t => `${t} (GW${byTeam[t].join(', GW')})`).join(' & ');
+}
+
 function renderBonusOverview(data) {
-  const best = data.records && data.records.best && data.records.best.team ? data.records.best : null;
-  const worst = data.records && data.records.worst && data.records.worst.team ? data.records.worst : null;
+  const best = data.records && data.records.best && data.records.best.teams && data.records.best.teams.length ? data.records.best : null;
+  const worst = data.records && data.records.worst && data.records.worst.teams && data.records.worst.teams.length ? data.records.worst : null;
   const teams = data.teams || [];
   const hasRounds = data.loggedGWs && data.loggedGWs.length > 0;
 
@@ -553,9 +564,12 @@ function renderBonusOverview(data) {
     }
   }
 
+  const bestLabel = best ? formatRecordTeams(best) + ` — ${best.pts} p.` : null;
+  const worstLabel = worst ? formatRecordTeams(worst) + ` — ${worst.pts} p.` : null;
+
   const cards = [
-    {label: 'Bedste runde', html: best ? `<div class="places">${best.team} — ${best.pts} p. (GW${best.gw})</div>` : '<div class="places">Ingen data endnu</div>'},
-    {label: 'Dårligste runde', html: worst ? `<div class="places">${worst.team} — ${worst.pts} p. (GW${worst.gw})</div>` : '<div class="places">Ingen data endnu</div>'},
+    {label: 'Bedste runde', html: bestLabel ? `<div class="places">${bestLabel}</div>` : '<div class="places">Ingen data endnu</div>'},
+    {label: 'Dårligste runde', html: worstLabel ? `<div class="places">${worstLabel}</div>` : '<div class="places">Ingen data endnu</div>'},
     {label: 'Flest rundesejre', html: mostHTML},
     {label: 'Færrest rundesejre', html: fewestHTML},
     {label: 'FFP (flest ekstra transfers)', html: ffpHTML},
@@ -627,15 +641,22 @@ async function calculate() {
   const roundWinner = results[0];
   const roundLoser = results[results.length - 1];
 
-  const baseBest = currentState ? currentState.records.best : null;
-  let bestRecord = (baseBest && baseBest.team) ? baseBest : null;
-  const bestCandidate = {team: roundWinner.name, gw: gw, pts: roundWinner.fplPts};
-  if (!bestRecord || bestCandidate.pts > Number(bestRecord.pts)) bestRecord = bestCandidate;
+  function computeTiedRecord(baseRecord, candidate, isBetter) {
+    const hasBase = baseRecord && baseRecord.teams && baseRecord.teams.length && baseRecord.pts !== "";
+    if (!hasBase) return {teams: [candidate.team], gws: [String(candidate.gw)], pts: candidate.pts};
+    if (candidate.pts === Number(baseRecord.pts)) {
+      const already = baseRecord.teams.some((t,i) => t === candidate.team && baseRecord.gws[i] === String(candidate.gw));
+      return already ? baseRecord : {teams: [...baseRecord.teams, candidate.team], gws: [...baseRecord.gws, String(candidate.gw)], pts: candidate.pts};
+    }
+    if (isBetter(candidate.pts, Number(baseRecord.pts))) return {teams: [candidate.team], gws: [String(candidate.gw)], pts: candidate.pts};
+    return baseRecord;
+  }
 
-  const baseWorst = currentState ? currentState.records.worst : null;
-  let worstRecord = (baseWorst && baseWorst.team) ? baseWorst : null;
+  const bestCandidate = {team: roundWinner.name, gw: gw, pts: roundWinner.fplPts};
+  const bestRecord = computeTiedRecord(currentState ? currentState.records.best : null, bestCandidate, (a,b) => a > b);
+
   const worstCandidate = {team: roundLoser.name, gw: gw, pts: roundLoser.fplPts};
-  if (!worstRecord || worstCandidate.pts < Number(worstRecord.pts)) worstRecord = worstCandidate;
+  const worstRecord = computeTiedRecord(currentState ? currentState.records.worst : null, worstCandidate, (a,b) => a < b);
 
   const maxWins = Math.max(...results.map(r => r.winsAfter));
   const minWins = Math.min(...results.map(r => r.winsAfter));
@@ -699,8 +720,8 @@ function renderFacts(d) {
   byCum.forEach((r, i) => { text += `${i+1} ${r.name} ${r.cumAfter} kr\n`; });
 
   text += `\nBonusspillet er opdateret:\n`;
-  text += `*Den dårligste runde af alle: 50 kroner.*\n(${d.worstRecord.team}, runde ${d.worstRecord.gw}; ${d.worstRecord.pts} point)\n`;
-  text += `*Den bedste runde af alle: 25 kroner.*\n(${d.bestRecord.team}; runde ${d.bestRecord.gw}; ${d.bestRecord.pts} point)\n`;
+  text += `*Den dårligste runde af alle: 50 kroner.*\n(${formatRecordTeams(d.worstRecord)}; ${d.worstRecord.pts} point)\n`;
+  text += `*Den bedste runde af alle: 25 kroner.*\n(${formatRecordTeams(d.bestRecord)}; ${d.bestRecord.pts} point)\n`;
   text += `*Flest vundne runder: 25 kroner*\n(${d.mostWinsTeams.join(' & ')}; ${d.maxWins})\n`;
   text += `*Færrest vundne runder 50 kroner:*\n(${d.fewestWinsTeams.join(' & ')}; ${d.minWins})\n`;
 
@@ -809,8 +830,8 @@ async function endSeason() {
 
   const best = currentState.records && currentState.records.best;
   const worst = currentState.records && currentState.records.worst;
-  if (best && best.team) totals[best.team] = (totals[best.team] || 0) + 25;
-  if (worst && worst.team) totals[worst.team] = (totals[worst.team] || 0) + 50;
+  if (best && best.teams) [...new Set(best.teams)].forEach(n => { totals[n] = (totals[n] || 0) + 25; });
+  if (worst && worst.teams) [...new Set(worst.teams)].forEach(n => { totals[n] = (totals[n] || 0) + 50; });
 
   const maxWins = Math.max(...teams.map(t => t.wins));
   const minWins = Math.min(...teams.map(t => t.wins));
@@ -834,8 +855,8 @@ async function endSeason() {
   text += `\nRelegation Fee — starter næste sæsons "Runden der gik"-rotation:\n${relegated.join(' & ')}\n`;
 
   text += `\nBonusspillet — endelig opgørelse:\n`;
-  text += `*Den dårligste runde af alle: 50 kroner.*\n${worst && worst.team ? `(${worst.team}, runde ${worst.gw}; ${worst.pts} point)` : '(ingen data)'}\n`;
-  text += `*Den bedste runde af alle: 25 kroner.*\n${best && best.team ? `(${best.team}; runde ${best.gw}; ${best.pts} point)` : '(ingen data)'}\n`;
+  text += `*Den dårligste runde af alle: 50 kroner.*\n${worst && worst.teams && worst.teams.length ? `(${formatRecordTeams(worst)}; ${worst.pts} point)` : '(ingen data)'}\n`;
+  text += `*Den bedste runde af alle: 25 kroner.*\n${best && best.teams && best.teams.length ? `(${formatRecordTeams(best)}; ${best.pts} point)` : '(ingen data)'}\n`;
   text += `*Flest vundne runder: 25 kroner*\n(${mostWinsTeams.join(' & ')}; ${maxWins})\n`;
   text += `*Færrest vundne runder 50 kroner:*\n(${fewestWinsTeams.join(' & ')}; ${minWins})\n`;
   text += `*FFP-bøde (flest ekstra transfers): 25 kroner*\n${ffpTeams.length ? `(${ffpTeams.join(' & ')}; ${maxTransfers})` : '(ingen har taget ekstra transfers)'}\n`;
