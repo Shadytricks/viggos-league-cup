@@ -248,7 +248,7 @@
 
 </main>
 
-<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v2.3</footer>
+<footer>Viggos League Cup · Internt værktøj til ugentlig rundeskriv og bødekasse-beregning · v2.3.1</footer>
 
 <script>
 const TEAM_NAMES = ["Lalboination", "Sunred Ultras", "Stardom Hotspurs", "Fred FC", "Kokos", "FC Tolstrup", "John Dennis", "FC Lindcastle"];
@@ -485,9 +485,6 @@ function initRotationTable() {
     const rowStyle = isLogged ? ' style="text-decoration: line-through; opacity: 0.5;"' : '';
     return `<tr class="${isCurrent ? 'rotation-current' : ''}"${rowStyle}><td>GW${r.gw}${isBonus ? '<span class="bonus-badge">2X</span>' : ''}${isLogged ? ' ✅' : ''}</td><td>${r.team}</td></tr>`;
   }).join('');
-
-  const writerEntry = ROTATION.find(r => r.gw === currentGW);
-  document.getElementById('writer-name').textContent = writerEntry ? writerEntry.team : '?';
 }
 
 function selectNextUnloggedGW() {
